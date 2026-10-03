@@ -1,0 +1,82 @@
+public interface ITeamRepository
+{
+    Task<IEnumerable<Team>> GetAllAsync();
+    Task<Team?> GetAsync(int id);
+    Task CreateAsync(Team team);
+    Task UpdateAsync(Team team);
+    Task DeleteAsync(int id);
+    Task<IEnumerable<Team>> GetByCityAsync(int id); // Дополнительный метод для поиска по городу (или по строке city)
+}
+public async Task<IEnumerable<Team>> GetByCityAsync(string city)
+{
+    return await _context.Teams
+        .Where(t => t.City.ToLower() == city.ToLower())
+        .ToListAsync();
+}
+[Route("api/team")]
+[ApiController]
+public class TeamController : ControllerBase
+{
+    private readonly ITeamRepository _teamRepository;
+    private readonly IMapper _mapper;
+
+    public TeamController(ITeamRepository teamRepository, IMapper mapper)
+    {
+        _teamRepository = teamRepository;
+        _mapper = mapper;
+    }
+
+    // --- Часть 1 (уже должна быть реализована): GET, GET {id}, POST ---
+
+    // --- Часть 2: Самостоятельное задание ---
+
+    // PUT /api/team/{id}
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ReturnResult>> UpdateTeam(int id, [FromBody] TeamDto teamDto)
+    {
+        var existingTeam = await _teamRepository.GetAsync(id);
+        if (existingTeam == null)
+        {
+            return NotFound(new ReturnResult { Success = false, Message = "Team not found" });
+        }
+
+        // Обновляем поля сущности из DTO
+        existingTeam.Name = teamDto.Name;
+        existingTeam.City = teamDto.City;
+        // Описание (Description) не меняем или оставляем прежним, т.к. в DTO его нет
+
+        await _teamRepository.UpdateAsync(existingTeam);
+
+        return Ok(new ReturnResult { Success = true, Message = "Team updated successfully" });
+    }
+
+    // DELETE /api/team/{id}
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ReturnResult>> DeleteTeam(int id)
+    {
+        var existingTeam = await _teamRepository.GetAsync(id);
+        if (existingTeam == null)
+        {
+            return NotFound(new ReturnResult { Success = false, Message = "Team not found" });
+        }
+
+        await _teamRepository.DeleteAsync(id);
+
+        return Ok(new ReturnResult { Success = true, Message = "Team deleted successfully" });
+    }
+
+    // GET /api/team/city/{city}
+    [HttpGet("city/{city}")]
+    public async Task<ActionResult<ReturnResult>> GetTeamsByCity(string city)
+    {
+        var teams = await _teamRepository.GetByCityAsync(city);
+        var teamDtos = _mapper.Map<IEnumerable<TeamDto>>(teams);
+
+        return Ok(new ReturnResult 
+        { 
+            Success = true, 
+            Data = teamDtos, 
+            Message = "Teams retrieved successfully by city" 
+        });
+    }
+}
